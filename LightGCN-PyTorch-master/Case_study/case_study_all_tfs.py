@@ -8,8 +8,13 @@ import torch as th
 network_path = 'hesc2/result_all_tfs.txt'
 network = pd.read_csv(network_path, sep=',', header=None)
 network.columns = ['tf', 'target', 'score']
-print(network)
+# network['direction'] = ['undirected' for i in range(len(network))]
 
+# table = network.iloc[:100,:]
+# table.to_excel('hesc2/result_all_tfs.xlsx', index=False)
+# print(table)
+# print(table['weight'].max(), table['weight'].min())
+# exit()
 # Create a undirected graph
 G = nx.Graph()
 for i in range(100):
@@ -17,7 +22,7 @@ for i in range(100):
 
 
 M = G.number_of_edges()
-node_sizes = 1
+node_sizes = 100
 edge_colors = [G[u][v]['weight'] for u, v in G.edges()]
 edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
 cmap = plt.cm.plasma
@@ -25,7 +30,7 @@ cmap = plt.cm.plasma
 # use plt to draw the graph
 # plt.figure(figsize=(20, 20))
 # pos = nx.spring_layout(G)
-pos = nx.kamada_kawai_layout(G)
+pos = nx.kamada_kawai_layout(G, scale=2)
 nodes = nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color="indigo")
 edges = nx.draw_networkx_edges(
     G,
