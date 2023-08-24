@@ -2667,6 +2667,7 @@ def predict_all():
     TF_num = 36
     data_name = 'hesc2'
     save_dir = '../Case_study/' + data_name + '/'
+
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     # e = GeneData('../data_evaluation/single_cell_type/hESC/ExpressionData.csv',
@@ -2740,7 +2741,8 @@ def predict_all():
     scores_all = []
     taf1_all = []
     tbp_all = []
-    for tf in ['taf1', 'tbp']:
+
+    for tf in TFs:
         print(tf)
         for gene in tqdm(all_genes):
             if tf == gene or "{},{}".format(tf, gene) in train_key_dict:
@@ -2752,24 +2754,28 @@ def predict_all():
             with torch.no_grad():
                 scores = model(gene_emb, None).squeeze()
                 # scores = torch.sigmoid(scores)
-                # scores_all.append([tf, gene, scores.item()])
-                if tf == 'taf1':
-                    taf1_all.append([tf, gene, scores.item()])
-                elif tf == 'tbp':
-                    tbp_all.append([tf, gene, scores.item()])
-    # scores_all = sorted(scores_all, key=lambda x: x[2], reverse=True)
+                scores_all.append([tf, gene, scores.item()])
+                # if tf == 'taf1':
+                #     taf1_all.append([tf, gene, scores.item()])
+                # elif tf == 'tbp':
+                #     tbp_all.append([tf, gene, scores.item()])
+    scores_all = sorted(scores_all, key=lambda x: x[2], reverse=True)
     # print(scores_all[:10])
-    taf1_all = sorted(taf1_all, key=lambda x: x[2], reverse=True)
-    print(taf1_all[:10])
-    tbp_all = sorted(tbp_all, key=lambda x: x[2], reverse=True)
-    print(tbp_all[:10])
-    with open(save_dir + 'result_taf1_tbp.txt', 'w') as f:
-        # for score in scores_all[:30]:
-        #     f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
-        for score in taf1_all[:40]:
-            f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
-        f.write('\n')
-        for score in tbp_all[:40]:
+    # taf1_all = sorted(taf1_all, key=lambda x: x[2], reverse=True)
+    # print(taf1_all[:10])
+    # tbp_all = sorted(tbp_all, key=lambda x: x[2], reverse=True)
+    # print(tbp_all[:10])
+    # with open(save_dir + 'result_taf1.txt', 'w') as f:
+    #     # for score in scores_all[:30]:
+    #     #     f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
+    #     for score in taf1_all[:200]:
+    #         f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
+    #
+    # with open(save_dir + 'result_tbp.txt', 'w') as f:
+    #     for score in tbp_all[:200]:
+    #         f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
+    with open(save_dir + 'result_all_tfs.txt', 'w') as f:
+        for score in scores_all[:500]:
             f.write(score[0] + ',' + score[1] + ',' + str(score[2]) + '\n')
 
 
