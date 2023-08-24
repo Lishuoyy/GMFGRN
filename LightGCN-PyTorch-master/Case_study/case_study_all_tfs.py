@@ -1,59 +1,31 @@
 import pandas as pd
 import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import torch as th
+import igraph as ig
+import networkx as nx
+import nxviz as nv
 # Read the data
 network_path = 'hesc2/result_all_tfs.txt'
 network = pd.read_csv(network_path, sep=',', header=None)
 network.columns = ['tf', 'target', 'score']
 # network['direction'] = ['undirected' for i in range(len(network))]
 
-# table = network.iloc[:100,:]
-# table.to_excel('hesc2/result_all_tfs.xlsx', index=False)
+# table = network.iloc[:200,:]
+# table.to_excel('hesc2/result_all_tfs_200.xlsx', index=False)
 # print(table)
 # print(table['weight'].max(), table['weight'].min())
 # exit()
+
+
+
 # Create a undirected graph
-G = nx.Graph()
-for i in range(100):
-    G.add_edge(network['tf'][i], network['target'][i], weight=network['score'][i])
-
-
-M = G.number_of_edges()
-node_sizes = 100
-edge_colors = [G[u][v]['weight'] for u, v in G.edges()]
-edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
-cmap = plt.cm.plasma
-
-# use plt to draw the graph
-# plt.figure(figsize=(20, 20))
-# pos = nx.spring_layout(G)
-pos = nx.kamada_kawai_layout(G, scale=2)
-nodes = nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color="indigo")
-edges = nx.draw_networkx_edges(
-    G,
-    pos,
-    node_size=node_sizes,
-    # arrowstyle="->",
-    arrowsize=10,
-    edge_color=edge_colors,
-    edge_cmap=cmap,
-    width=2,
-    arrows=True,
-)
-# print(len(edges),M, len(node_sizes))
-# exit()
-# nx.draw_networkx_labels(G, pos, font_size=10, font_color='b')
-
-# set alpha value for each edge
-for i in range(M):
-    edges[i].set_alpha(edge_alphas[i])
-
-pc = mpl.collections.PatchCollection(edges, cmap=cmap)
-pc.set_array(edge_colors)
-ax = plt.gca()
-ax.set_axis_off()
-plt.colorbar(pc, ax=ax)
-plt.show()
+# G = nx.Graph()
+# for i in range(100):
+#     G.add_edge(network['tf'][i], network['target'][i], weight=network['score'][i])
+#
+#
+# ax = nv.circos(G)
+# ax.draw()
+# plt.show()
