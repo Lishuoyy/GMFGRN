@@ -1,46 +1,14 @@
-
+"""NN modules"""
 import dgl
 import dgl.function as fn
 import dgl.nn.pytorch as dglnn
-import numpy as np
 import torch as th
 import torch.nn as nn
 from torch.nn import init
-import torch.nn.functional as F
 from utils import to_etype_name
-import os
 
-# def set_seed(seed_num):
-#     th.manual_seed(seed_num)
-#     th.cuda.manual_seed(seed_num)
-#     th.cuda.manual_seed_all(seed_num)
-#     np.random.seed(seed_num)
-#     # random.seed(seed_num)
-#     th.backends.cudnn.benchmark = False
-#     th.backends.cudnn.deterministic = True
-#     os.environ['PYTHONHASHSEED'] = str(seed_num)
-#
-#
-# # seed_num = 3407
-# set_seed(123)  # 27 114514
 
 class GCMCGraphConv(nn.Module):
-    """Graph convolution module used in the GCMC model.
-
-    Parameters
-    ----------
-    in_feats : int
-        Input feature size.
-    out_feats : int
-        Output feature size.
-    weight : bool, optional
-        If True, apply a linear layer. Otherwise, aggregating the messages
-        without a weight matrix or with an shared weight provided by caller.
-    device: str, optional
-        Which device to put data in. Useful in mix_cpu_gpu training and
-        multi-gpu training
-    """
-
     def __init__(
             self, in_feats, out_feats, weight=True, device=None, dropout_rate=0.0
     ):
@@ -90,10 +58,7 @@ class GCMCGraphConv(nn.Module):
 
             cj = graph.srcdata["cj"]
             ci = graph.dstdata["ci"]
-            # print(cj.shape)
-            # print(ci.shape)
-            # print(self.weight.shape)
-            # exit()
+
             if self.device is not None:
                 cj = cj.to(self.device)
                 ci = ci.to(self.device)
@@ -109,8 +74,7 @@ class GCMCGraphConv(nn.Module):
 
             if weight is not None:
                 feat = dot_or_identity(feat, weight, self.device)
-            # print(feat.shape)
-            # exit()
+
             feat = feat * self.dropout(cj)
             graph.srcdata["h"] = feat
             graph.update_all(
@@ -138,54 +102,6 @@ class GCMCBlock(nn.Module):
 
 
 class GCMCLayer(nn.Module):
-    r"""GCMC layer
-
-    .. math::
-        z_j^{(l+1)} = \sigma_{agg}\left[\mathrm{agg}\left(
-        \sum_{j\in\mathcal{N}_1}\frac{1}{c_{ij}}W_1h_j, \ldots,
-        \sum_{j\in\mathcal{N}_R}\frac{1}{c_{ij}}W_Rh_j
-        \right)\right]
-
-    After that, apply an extra output projection:
-
-    .. math::
-        h_j^{(l+1)} = \sigma_{out}W_oz_j^{(l+1)}
-
-    The equation is applied to both gene nodes and cell nodes and the parameters
-    are not shared unless ``share_gene_item_param`` is true.
-
-    Parameters
-    ----------
-    rating_vals : list of int or float
-        Possible rating values.
-    gene_in_units : int
-        Size of gene input feature
-    cell_in_units : int
-        Size of cell input feature
-    msg_units : int
-        Size of message :math:`W_rh_j`
-    out_units : int
-        Size of of final output gene and cell features
-    dropout_rate : float, optional
-        Dropout rate (Default: 0.0)
-    agg : str, optional
-        Function to aggregate messages of different ratings.
-        Could be any of the supported cross type reducers:
-        "sum", "max", "min", "mean", "stack".
-        (Default: "stack")
-    agg_act : callable, str, optional
-        Activation function :math:`sigma_{agg}`. (Default: None)
-    out_act : callable, str, optional
-        Activation function :math:`sigma_{agg}`. (Default: None)
-    share_gene_item_param : bool, optional
-        If true, gene node and cell node share the same set of parameters.
-        Require ``gene_in_units`` and ``move_in_units`` to be the same.
-        (Default: False)
-    device: str, optional
-        Which device to put data in. Useful in mix_cpu_gpu training and
-        multi-gpu training
-    """
-
     def __init__(
             self,
             rating_vals,
@@ -194,37 +110,20 @@ class GCMCLayer(nn.Module):
             msg_units,
             out_units,
             dropout_rate=0.0,
-            agg="stack",  # or 'sum'
-            agg_act=None,
-            out_act=None,
-            share_gene_item_param=False,
+
             device=None,
     ):
         super(GCMCLayer, self).__init__()
         self.rating_vals = rating_vals
-        self.agg = agg
-        self.share_gene_item_param = share_gene_item_param
+
         self.ufc = nn.Linear(msg_units, out_units)
-        # self.ufc = nn.Sequential(
-        #     nn.Linear(msg_units, 1024),
-        #     nn.ReLU(),
-        #     nn.Linear(1024, out_units)
-        # )
-        # print('msg', msg_units, out_units)
-        if share_gene_item_param:
-            self.ifc = self.ufc
-        else:
-            self.ifc = nn.Linear(msg_units, out_units)
-            # self.ifc = nn.Sequential(
-            #     nn.Linear(msg_units, 1024),
-            #     nn.ReLU(),
-            #     nn.Linear(1024, out_units)
-            # )
-        if agg == "stack":
-            # divide the original msg unit size by number of ratings to keep
-            # the dimensionality
-            assert msg_units % len(rating_vals) == 0
-            msg_units = msg_units // len(rating_vals)
+        self.ifc = nn.Linear(msg_units, out_units)
+
+        # divide the original msg unit size by number of ratings to keep
+        # the dimensionality
+        assert msg_units % len(rating_vals) == 0
+        msg_units = msg_units // len(rating_vals)
+
         self.dropout = nn.Dropout(dropout_rate)
         self.W_r = nn.ParameterDict()
         subConv = {}
@@ -233,81 +132,26 @@ class GCMCLayer(nn.Module):
             origin_rating = rating
             rating = to_etype_name(rating)
             rev_rating = "rev-%s" % rating
-            if share_gene_item_param and gene_in_units == cell_in_units:
-                self.W_r[rating] = nn.Parameter(
-                    th.randn(gene_in_units, msg_units)
-                )
-                self.W_r["rev-%s" % rating] = self.W_r[rating]
-                subConv[rating] = GCMCGraphConv(
-                    gene_in_units,
-                    msg_units,
-                    weight=False,
-                    device=device,
-                    dropout_rate=dropout_rate,
-                )
-                subConv[rev_rating] = GCMCGraphConv(
-                    gene_in_units,
-                    msg_units,
-                    weight=False,
-                    device=device,
-                    dropout_rate=dropout_rate,
-                )
-            else:
-                self.W_r = None
-                # if origin_rating < len(rating_vals) - 1:
-                subConv[rating] = GCMCGraphConv(
-                    gene_in_units,
-                    # gene_in_units,
-                    msg_units,
-                    weight=True,
-                    device=device,
-                    dropout_rate=dropout_rate,
-                )
-                subConv[rev_rating] = GCMCGraphConv(
-                    cell_in_units,
-                    # cell_in_units,
-                    msg_units,
-                    weight=True,
-                    device=device,
-                    dropout_rate=dropout_rate,
-                )
-                # elif origin_rating == len(rating_vals) - 1:
-                #     subConv[rating] = GCMCGraphConv(
-                #         gene_in_units,
-                #         # gene_in_units,
-                #         msg_units,
-                #         weight=True,
-                #         device=device,
-                #         dropout_rate=dropout_rate,
-                #     )
-                #     subConv[rev_rating] = GCMCGraphConv(
-                #         gene_in_units,
-                #         # cell_in_units,
-                #         msg_units,
-                #         weight=True,
-                #         device=device,
-                #         dropout_rate=dropout_rate,
-                #     )
-                # else:
-                #     subConv[rating] = GCMCGraphConv(
-                #         cell_in_units,
-                #         # gene_in_units,
-                #         msg_units,
-                #         weight=True,
-                #         device=device,
-                #         dropout_rate=dropout_rate,
-                #     )
-                #     subConv[rev_rating] = GCMCGraphConv(
-                #         cell_in_units,
-                #         msg_units,
-                #         weight=True,
-                #         device=device,
-                #         dropout_rate=dropout_rate,
-                #     )
-        self.conv = dglnn.HeteroGraphConv(subConv, aggregate=agg)
-        # self.conv1 = dglnn.HeteroGraphConv(subConv, aggregate=agg)
-        self.agg_act = get_activation(agg_act)
-        self.out_act = get_activation(out_act)
+
+            self.W_r = None
+            subConv[rating] = GCMCGraphConv(
+                gene_in_units,
+                msg_units,
+                weight=True,
+                device=device,
+                dropout_rate=dropout_rate,
+            )
+            subConv[rev_rating] = GCMCGraphConv(
+                cell_in_units,
+                msg_units,
+                weight=True,
+                device=device,
+                dropout_rate=dropout_rate,
+            )
+
+        self.conv = dglnn.HeteroGraphConv(subConv, aggregate='stack')
+        self.agg_act = nn.ReLU()
+        self.out_act = lambda x: x
         self.device = device
         self.reset_parameters()
 
@@ -337,12 +181,12 @@ class GCMCLayer(nn.Module):
         Parameters
         ----------
         graph : DGLGraph
-            gene-cell rating graph. It should contain two node types: "gene"
+            Gene-cell rating graph. It should contain two node types: "gene"
             and "cell" and many edge types each for one rating value.
         ufeat : torch.Tensor, optional
-            gene features. If None, using an identity matrix.
+            Gene features. If None, using an identity matrix.
         ifeat : torch.Tensor, optional
-            cell features. If None, using an identity matrix.
+            Cell features. If None, using an identity matrix.
 
         Returns
         -------
@@ -363,24 +207,7 @@ class GCMCLayer(nn.Module):
             mod_args[rev_rating] = (
                 self.W_r[rev_rating] if self.W_r is not None else None,
             )
-        # mod_args['uu'] = (
-        #     self.W_r['uu'] if self.W_r is not None else None,
-        # )
-        # mod_args['uu1'] = (
-        #     self.W_r['uu1'] if self.W_r is not None else None,
-        # )
-        # mod_args['mm'] = (
-        #     self.W_r['mm'] if self.W_r is not None else None,
-        # )
-        # mod_args['mm1'] = (
-        #     self.W_r['mm1'] if self.W_r is not None else None,
-        # )
-        # print(mod_args)
-        # exit()
-        # print(in_feats)
         out_feats = self.conv(graph, in_feats, mod_args=mod_args)
-        # print(out_feats['gene'].shape, out_feats['cell'].shape)
-        # exit()
 
         ufeat = out_feats["gene"]
         ifeat = out_feats["cell"]
@@ -397,102 +224,12 @@ class GCMCLayer(nn.Module):
         return self.out_act(ufeat), self.out_act(ifeat)
 
 
-# Define a Heterograph Conv model
+class Decoder(nn.Module):
 
+    def __init__(self, dropout_rate=0.0):
+        super(Decoder, self).__init__()
 
-class HeteroDotProductPredictor(nn.Module):
-    def forward(self, graph, h, etype):
-        # h是从5.1节中对每种类型的边所计算的节点表示
-        with graph.local_scope():
-            graph.ndata['h'] = h  # 一次性为所有节点类型的 'h'赋值
-            graph.apply_edges(fn.u_dot_v('h', 'h', 'score'), etype=etype)
-            return graph.edges[etype].data['score']
-
-
-class HeteroMLPPredictor(nn.Module):
-    def __init__(self, in_dims, n_classes):
-        super().__init__()
-        self.W = nn.Linear(in_dims * 2, 1)
-
-    def apply_edges(self, edges):
-        x = th.cat([edges.src['h'], edges.dst['h']], 1)
-        y = self.W(x)
-        return {'score': y}
-
-    def forward(self, graph, h):
-        # h是从5.1节中对异构图的每种类型的边所计算的节点表示
-        with graph.local_scope():
-            graph.ndata['h'] = h  # 一次性为所有节点类型的 'h'赋值
-            graph.apply_edges(self.apply_edges)
-            return graph.edata['score']
-
-
-class RGCN(nn.Module):
-    def __init__(self, in_feats, hid_feats, out_feats, rel_names):
-        super().__init__()
-        # 实例化HeteroGraphConv，in_feats是输入特征的维度，out_feats是输出特征的维度，aggregate是聚合函数的类型
-        self.conv1 = dglnn.HeteroGraphConv({
-            rel: dglnn.GraphConv(in_feats, hid_feats)
-            for rel in rel_names}, aggregate='sum')
-        self.conv2 = dglnn.HeteroGraphConv({
-            rel: dglnn.GraphConv(hid_feats, out_feats)
-            for rel in rel_names}, aggregate='sum')
-        # gene embedding
-        self.gene_embedding = nn.Embedding(4762, 256)
-        # cell embedding
-        self.cell_embedding = nn.Embedding(847, 256)
-        self.inputs = {'gene': self.gene_embedding.weight, 'cell': self.cell_embedding.weight}
-        self.pred = HeteroDotProductPredictor()
-        self.pred1 = HeteroMLPPredictor(256, len(rel_names))
-
-    def forward(self, enc_graph, dec_graph):
-        # 输入是节点的特征字典
-        h = self.conv1(enc_graph, self.inputs)
-        h = {k: F.relu(v) for k, v in h.items()}
-        # h = self.conv2(enc_graph, h)
-        # return self.pred(dec_graph,h, dec_graph.etypes[0]), h['gene'], h['cell']
-        return self.pred1(dec_graph, h), h['gene'], h['cell']
-
-
-class BiDecoder(nn.Module):
-    r"""Bi-linear decoder.
-
-    Given a bipartite graph G, for each edge (i, j) ~ G, compute the likelihood
-    of it being class r by:
-
-    .. math::
-        p(M_{ij}=r) = \text{softmax}(u_i^TQ_rv_j)
-
-    The trainable parameter :math:`Q_r` is further decomposed to a linear
-    combination of basis weight matrices :math:`P_s`:
-
-    .. math::
-        Q_r = \sum_{s=1}^{b} a_{rs}P_s
-
-    Parameters
-    ----------
-    in_units : int
-        Size of input gene and cell features
-    num_classes : int
-        Number of classes.
-    num_basis : int, optional
-        Number of basis. (Default: 2)
-    dropout_rate : float, optional
-        Dropout raite (Default: 0.0)
-    """
-
-    def __init__(self, in_units=256, num_basis=1, dropout_rate=0.0):
-        super(BiDecoder, self).__init__()
-        self._num_basis = num_basis
         self.dropout = nn.Dropout(dropout_rate)
-        self.Ps = nn.ParameterList(
-            nn.Parameter(th.randn(in_units, in_units)) for _ in range(num_basis)
-        )
-        self.W1 = nn.Linear(in_units * 2, in_units, bias=True)
-        self.W2 = nn.Linear(in_units, 1, bias=True)
-        # self.fc = nn.Linear(in_units, num_classes, bias=False)
-        # self.ac = nn.Softmax(dim=1)
-        self.combine_basis = nn.Linear(self._num_basis, 1, bias=True)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -500,106 +237,16 @@ class BiDecoder(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def apply_edges(self, edges):
-        h_u = edges.src['h']
-        h_v = edges.dst['h']
-        score = th.cat([h_u], 1)
-        # score = self.W2(F.relu(score))
-        return {'cl_sr': score}
-
     def forward(self, graph, ufeat, ifeat):
-        """Forward function.
 
-        Parameters
-        ----------
-        graph : DGLGraph
-            "Flattened" gene-cell graph with only one edge type.
-        ufeat : th.Tensor
-            gene embeddings. Shape: (|V_u|, D)
-        ifeat : th.Tensor
-            cell embeddings. Shape: (|V_m|, D)
-
-        Returns
-        -------
-        th.Tensor
-            Predicting scores for each gene-cell edge.
-        """
         with graph.local_scope():
             ufeat = self.dropout(ufeat)
             ifeat = self.dropout(ifeat)
             graph.nodes["cell"].data["h"] = ifeat
-            basis_out = []
-            class_out = []
-            for i in range(self._num_basis):
-                graph.nodes["gene"].data["h"] = ufeat  # @ self.Ps[i]
-                graph.apply_edges(fn.u_dot_v("h", "h", "sr"))
-                # graph.apply_edges(self.apply_edges)
-                return graph.edata['sr']
-                # basis_out.append(graph.edata["sr"])
-                class_out.append(graph.edata["cl_sr"])
-            # out = th.cat(basis_out, dim=1)
-            out = th.cat(class_out, dim=1)
-            out = self.W2(out)
-            # out = self.combine_basis(out)
-            # out2 = self.fc(th.cat(class_out, dim=1))
-            # out2 = self.ac(out2)
-        return out
+            graph.nodes["gene"].data["h"] = ufeat
+            graph.apply_edges(fn.u_dot_v("h", "h", "sr"))
 
-
-class DenseBiDecoder(nn.Module):
-    r"""Dense bi-linear decoder.
-
-    Dense implementation of the bi-linear decoder used in GCMC. Suitable when
-    the graph can be efficiently represented by a pair of arrays (one for source
-    nodes; one for destination nodes).
-
-    Parameters
-    ----------
-    in_units : int
-        Size of input gene and cell features
-    num_classes : int
-        Number of classes.
-    num_basis : int, optional
-        Number of basis. (Default: 2)
-    dropout_rate : float, optional
-        Dropout raite (Default: 0.0)
-    """
-
-    def __init__(self, in_units, num_classes, num_basis=2, dropout_rate=0.0):
-        super().__init__()
-        self._num_basis = num_basis
-        self.dropout = nn.Dropout(dropout_rate)
-        self.P = nn.Parameter(th.randn(num_basis, in_units, in_units))
-        self.combine_basis = nn.Linear(self._num_basis, 1, bias=False)
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
-
-    def forward(self, ufeat, ifeat):
-        """Forward function.
-
-        Compute logits for each pair ``(ufeat[i], ifeat[i])``.
-
-        Parameters
-        ----------
-        ufeat : th.Tensor
-            gene embeddings. Shape: (B, D)
-        ifeat : th.Tensor
-            cell embeddings. Shape: (B, D)
-
-        Returns
-        -------
-        th.Tensor
-            Predicting scores for each gene-cell edge. Shape: (B, num_classes)
-        """
-        ufeat = self.dropout(ufeat)
-        ifeat = self.dropout(ifeat)
-        out = th.einsum("ai,bij,aj->ab", ufeat, self.P, ifeat)
-        out = self.combine_basis(out)
-        return out
+            return graph.edata['sr']
 
 
 def dot_or_identity(A, B, device=None):
@@ -615,62 +262,74 @@ def dot_or_identity(A, B, device=None):
         return A @ B
 
 
-class SAGE(nn.Module):
-    def __init__(self, in_feats, hid_feats, out_feats):
-        super().__init__()
-        # 实例化SAGEConve，in_feats是输入特征的维度，out_feats是输出特征的维度，aggregator_type是聚合函数的类型
-        self.conv1 = dglnn.GraphConv(
-            in_feats=in_feats, out_feats=hid_feats)
-        self.conv2 = dglnn.GraphConv(
-            in_feats=hid_feats, out_feats=out_feats, )
-        self.conv3 = dglnn.GraphConv(
-            in_feats=out_feats, out_feats=out_feats)
+class LinearNet(nn.Module):
+    def __init__(self, emb_dim=256):
+        super(LinearNet, self).__init__()
+        self.ac = nn.ReLU()
+        self.gene_model = nn.Sequential(
+            nn.Linear(emb_dim, emb_dim),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim, emb_dim)
+        )
+        self.cell_model = nn.Sequential(
+            nn.Linear(emb_dim, emb_dim),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim, emb_dim),
+        )
+        self.drop = nn.Dropout(0.5)
+        self.flatten = nn.Flatten()
+        self.gene1_fc = nn.Sequential(
+            nn.Linear(emb_dim * 2, emb_dim * 2),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim * 2, emb_dim),
+        )
+        self.gene2_fc = nn.Sequential(
+            nn.Linear(emb_dim * 2, emb_dim * 2),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim * 2, emb_dim),
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(emb_dim * 2, emb_dim),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim, emb_dim),
+            self.ac,
+            nn.Dropout(0.5),
+            nn.Linear(emb_dim, 1),
+        )
+        self.reset_parameters()
 
-    def forward(self, graph, inputs):
-        # 输入是节点的特征
-        h = self.conv1(graph, inputs)
-        h = F.relu(h)
-        h = self.conv2(graph, h)
-        h = F.relu(h)
-        h = self.conv3(graph, h)
-        return h
+    def reset_parameters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
+    def forward(self, x):
+        gene = []
+        for i in range(0, 2):
+            gene_emb = x[:, i, :]
+            gene_emb = self.flatten(gene_emb)
+            gene_emb_1 = self.gene_model(gene_emb)
+            gene.append(gene_emb_1)
 
-class DotProductPredictor(nn.Module):
-    def forward(self, graph, h):
-        # h是从5.1节的GNN模型中计算出的节点表示
-        with graph.local_scope():
-            graph.ndata['h'] = h
-            graph.apply_edges(fn.u_dot_v('h', 'h', 'score'))
-            return graph.edata['score']
+        cell = []
+        for i in range(0, 2):
+            cell_emb = x[:, i + 2, :]
+            cell_emb = self.flatten(cell_emb)
+            cell_emb_1 = self.cell_model(cell_emb)
+            cell.append(cell_emb_1)
 
+        gene1_cell = th.cat([gene[0], cell[0]], dim=1)
+        gene2_cell = th.cat([gene[1], cell[1]], dim=1)
 
-class MLPPredictor(nn.Module):
-    def __init__(self, in_features, out_classes):
-        super().__init__()
-        self.W = nn.Linear(in_features * 2, out_classes)
+        gene1_cell_1 = self.gene1_fc(gene1_cell)
+        gene2_cell_1 = self.gene2_fc(gene2_cell)
 
-    def apply_edges(self, edges):
-        h_u = edges.src['h']
-        h_v = edges.dst['h']
-        score = self.W(th.cat([h_u, h_v], 1))
-        return {'score': score}
+        gene_cell = th.cat([gene1_cell_1, gene2_cell_1], dim=1)
 
-    def forward(self, graph, h):
-        # h是从5.1节的GNN模型中计算出的节点表示
-        with graph.local_scope():
-            graph.ndata['h'] = h
-            graph.apply_edges(self.apply_edges)
-            return graph.edata['score']
-
-
-class SAGEModel(nn.Module):
-    def __init__(self, in_features, hidden_features, out_features):
-        super().__init__()
-        self.sage = SAGE(in_features, hidden_features, out_features)
-        # self.pred = DotProductPredictor()
-
-    def forward(self, g, x):
-        h = self.sage(g, x)
-        return h  # self.pred(g, h)
-
+        x = self.fc(gene_cell)
+        return x

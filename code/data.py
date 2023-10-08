@@ -5,12 +5,12 @@ import os
 import pandas as pd
 import scipy.sparse as sp
 import torch as th
+import collections
 
 from utils import to_etype_name
 
 
 class ScRNASeqData:
-
     def __init__(
             self,
             name,
@@ -401,3 +401,225 @@ class ScRNASeqData:
     @property
     def num_cell(self):
         return self._num_cell
+
+
+class GeneData:
+    def __init__(self, rpkm_path, label_path, divide_path, TF_num, gene_emb_path, cell_emb_path, istime, ish5=False,
+                 gene_list_path=None, data_name=None, TF_random=False, save=False):
+        self.gene_cell_src = None
+        self.gene_cell_dst = None
+        self.istime = istime
+        self.data_name = data_name
+        self.TF_random = TF_random
+        self.save = save
+
+        if not istime:
+            if not ish5:
+                self.df = pd.read_csv(rpkm_path, header='infer', index_col=0)
+            else:
+                self.df = pd.read_hdf(rpkm_path, key='/RPKMs').T
+
+        else:
+            time_h5 = []
+            files = os.listdir(rpkm_path)
+            for i in range(len(files)):
+                if self.data_name.lower() == 'mesc1':
+                    time_pd = pd.read_hdf(rpkm_path + 'RPM_' + str(i) + '.h5', key='/RPKM')
+                else:
+                    time_pd = pd.read_hdf(rpkm_path + 'RPKM_' + str(i) + '.h5', key='/RPKMs')
+                time_h5.append(time_pd)
+            train_data = pd.concat(time_h5, axis=0, ignore_index=True)
+            self.df = train_data.T
+        self.origin_data = self.df.values
+
+        self.df.columns = self.df.columns.astype(str)
+        self.df.index = self.df.index.astype(str)
+        self.df.columns = self.df.columns.str.upper()
+        self.df.index = self.df.index.str.upper()
+        self.cell_to_idx = dict(zip(self.df.columns.astype(str), range(len(self.df.columns))))
+        self.gene_to_idx = dict(zip(self.df.index.astype(str), range(len(self.df.index))))
+
+        self.gene_to_name = {}
+        if gene_list_path:
+            gene_list = pd.read_csv(gene_list_path, header=None, sep='\s+')
+            gene_list[0] = gene_list[0].astype(str)
+            gene_list[1] = gene_list[1].astype(str)
+            gene_list[0] = gene_list[0].str.upper()
+            gene_list[1] = gene_list[1].str.upper()
+            self.gene_to_name = dict(zip(gene_list[0].astype(str), gene_list[1].astype(str)))
+
+        self.start_index = []
+        self.end_index = []
+        self.gene_emb = np.load(gene_emb_path)
+        self.cell_emb = np.load(cell_emb_path)
+        self.all_emb = np.concatenate((self.gene_emb, self.cell_emb), axis=0)
+
+        self.key_list = []
+        self.gold_standard = {}
+        self.datas = []
+        self.gene_key_datas = []
+
+        self.cell_datas = []
+        self.labels = []
+        self.idx = []
+
+        self.geneHaveCell = collections.defaultdict(list)
+        self.node_src = []
+        self.node_dst = []
+
+        self.getStartEndIndex(divide_path)
+        self.getLabel(label_path)
+        self.getGeneCell(self.df)
+
+        self.getTrainTest(TF_num)
+
+    def getStartEndIndex(self, divide_path):
+        tmp = []
+        with open(divide_path, 'r') as f:
+            for line in f:
+                line = line.strip().split()
+                tmp.append(int(line[0]))
+        self.start_index = tmp[:-1]
+        self.end_index = tmp[1:]
+
+    def getLabel(self, label_path):
+        s = open(label_path, 'r')
+        for line in s:
+            line = line.split()
+            gene1 = line[0]
+            gene2 = line[1]
+            label = line[2]
+
+            key = str(gene1) + "," + str(gene2)
+            if key not in self.gold_standard.keys():
+                self.gold_standard[key] = int(label)
+                self.key_list.append(key)
+            else:
+                if label == 2:
+                    # print(label)
+                    pass
+                else:
+                    self.gold_standard[key] = int(label)
+                self.key_list.append(key)
+        s.close()
+        print(len(self.key_list))
+        print(len(self.gold_standard.keys()))
+        # exit()
+
+    def getTrainTest(self, TF_num):
+
+        TF_order = list(range(0, len(self.start_index)))
+        if self.TF_random:
+            np.random.seed(42)
+            np.random.shuffle(TF_order)
+        print("TF_order", TF_order)
+        index_start_list = np.asarray(self.start_index)
+        index_end_list = np.asarray(self.end_index)
+        index_start_list = index_start_list[TF_order]
+        index_end_list = index_end_list[TF_order]
+
+        print(index_start_list)
+        print(index_end_list)
+        # s = open(self.data_name + '_representation/gene_pairs.txt', 'w')
+        # ss = open(self.data_name + '_representation/divide_pos.txt', 'w')
+        pos_len = 0
+        # ss.write(str(0) + '\n')
+        for i in range(TF_num):
+            name = self.data_name + '_representation/'
+            # if os.path.exists(self.data_name + '_representation/' + str(i) + '_xdata.npy'):
+            if self.save:
+                x_data = np.load(name + str(i) + '_xdata.npy')
+                h_data = np.load(name + str(i) + '_hdata.npy')
+                y_data = np.load(name + str(i) + '_ydata.npy')
+                gene_key_data = np.load(name + str(i) + '_gene_key_data.npy')
+
+                self.datas.append(x_data)
+                self.labels.append(y_data)
+                self.gene_key_datas.append(gene_key_data)
+                self.h_datas.append(h_data)
+                continue
+
+            start_idx = index_start_list[i]
+            end_idx = index_end_list[i]
+
+            print(i)
+            print(start_idx, end_idx)
+
+            this_datas = []
+            this_key_datas = []
+            this_labels = []
+
+            for line in self.key_list[start_idx:end_idx]:
+
+                label = self.gold_standard[line]
+                gene1, gene2 = line.split(',')
+                gene1 = gene1.upper()
+                gene2 = gene2.upper()
+                if int(label) != 2:
+                    this_key_datas.append([gene1.lower(), gene2.lower(), label])
+                    # s.write(gene1 + '\t' + gene2 + '\t' + str(label) + '\n')
+                    if not self.gene_to_name:
+                        gene1_idx = self.gene_to_idx[gene1]
+                        gene2_idx = self.gene_to_idx[gene2]
+                    else:
+                        gene1_index = self.gene_to_name[gene1]
+                        gene2_index = self.gene_to_name[gene2]
+                        gene1_idx = self.gene_to_idx[gene1_index]
+                        gene2_idx = self.gene_to_idx[gene2_index]
+
+                    gene1_emb = self.gene_emb[gene1_idx]
+                    gene2_emb = self.gene_emb[gene2_idx]
+
+                    gene1_emb = np.expand_dims(gene1_emb, axis=0)
+                    gene2_emb = np.expand_dims(gene2_emb, axis=0)
+
+                    gene1_cells = self.geneHaveCell[gene1_idx]
+                    if len(gene1_cells) == 0:
+                        gene1_cells_emb = np.zeros(256)
+                    else:
+                        gene1_cells_emb = self.cell_emb[gene1_cells]
+                        gene1_cells_emb = np.mean(gene1_cells_emb, axis=0)
+
+                    gene2_cells = self.geneHaveCell[gene2_idx]
+                    if len(gene2_cells) == 0:
+                        gene2_cells_emb = np.zeros(256)
+                    else:
+                        gene2_cells_emb = self.cell_emb[gene2_cells]
+                        gene2_cells_emb = np.mean(gene2_cells_emb, axis=0)
+
+                    gene1_cells_emb = np.expand_dims(gene1_cells_emb, axis=0)
+                    gene2_cells_emb = np.expand_dims(gene2_cells_emb, axis=0)
+
+                    gene_emb = np.concatenate((gene1_emb, gene2_emb, gene1_cells_emb, gene2_cells_emb), axis=0)
+                    this_datas.append(gene_emb)
+
+                    this_labels.append(label)
+            pos_len += len(this_datas)
+            # ss.write(str(pos_len) + '\n')
+
+            this_datas = np.asarray(this_datas)
+
+            print(this_datas.shape)
+
+            this_labels = np.asarray(this_labels)
+            this_key_datas = np.asarray(this_key_datas)
+            if self.save:
+                if not os.path.exists(name):
+                    os.mkdir(name)
+                np.save(name + str(i) + '_xdata.npy', this_datas)
+                np.save(name + str(i) + '_ydata.npy', this_labels)
+                np.save(name + str(i) + '_gene_key_data.npy', this_key_datas)
+                print(this_datas.shape, this_labels.shape)
+
+            self.datas.append(this_datas)
+            self.labels.append(this_labels)
+            self.gene_key_datas.append(this_key_datas)
+        # s.close()
+        # ss.close()
+
+    def getGeneCell(self, df):
+        for i in range(df.shape[0]):
+            j_nonzero = np.nonzero(df.iloc[i, :].values)[0]
+            if len(j_nonzero) == 0:
+                continue
+            self.geneHaveCell[i].extend(j_nonzero)

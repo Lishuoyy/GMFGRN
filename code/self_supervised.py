@@ -27,7 +27,6 @@ class Net(nn.Module):
             args.gcn_agg_units,
             args.gcn_out_units,
             args.gcn_dropout,
-
             device=args.device,
         )
         self.decoder = Decoder(dropout_rate=args.gcn_dropout)
@@ -45,7 +44,7 @@ def train(args):
         args.data_name,
         args.device,
         istime=args.is_time,
-        ish5=args.ish5,
+        ish5=args.is_h5,
         path=args.data_path,
         rank_all=args.class_rating,
     )
@@ -142,17 +141,9 @@ def train(args):
             if (count_loss / iter_idx) < best_train_mse:
                 best_iter = iter_idx
                 best_train_mse = (count_loss / iter_idx)
-                # logging.info("best_MSE: {}".format((best_train_mse)))
-                path = "results/" + args.data_name + '_checkpoint/'
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                torch.save(net.state_dict(), path + 'best_train_model_v' + '.pth')
-
-                path = "results/" + args.data_name + '_emb/'
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                np.save(path + 'gene_out_v.npy', gene_out.cpu().detach().numpy())
-                np.save(path + 'cell_out_v.npy', cell_out.cpu().detach().numpy())
+                torch.save(net.state_dict(), args.emb_path + 'best_train_model_v' + '.pth')
+                np.save(args.emb_path + 'gene_embedding.npy', gene_out.cpu().detach().numpy())
+                np.save(args.emb_path + 'cell_embedding.npy', cell_out.cpu().detach().numpy())
 
         if iter_idx % args.train_log_interval == 0 or iter_idx == 1:
             print(logging_str)
@@ -180,9 +171,9 @@ def config():
     parser.add_argument("--save_id", type=int, help="The saving log id")
     parser.add_argument(
         "--data_name",
-        default="mHSC-E",
+        default="mHSC_E",
         type=str,
-        help="The dataset name: mHSC-E, mHSC-GM, mHSC-L, timeData/hesc1...",
+        help="The dataset name: mHSC_E, mHSC_GM, mHSC_L, timeData/hesc1...",
     )
     parser.add_argument(
         "--data_path",
@@ -193,10 +184,8 @@ def config():
     # data_evaluation/single_cell_type/mHSC-E/ExpressionData.csv
     # data_evaluation/bonemarrow/bone_marrow_cell.h5
     # data_evaluation/Time_data/scRNA_expression_data/mesc2_expression_data/
-
     parser.add_argument("--is_time", default=False, action="store_true")
-    parser.add_argument("--ish5", default=False, action="store_true")
-
+    parser.add_argument("--is_h5", default=False, action="store_true")
     parser.add_argument("--gcn_dropout", type=float, default=0.0)
     parser.add_argument("--gcn_agg_units", type=int, default=3840)
     parser.add_argument("--gcn_out_units", type=int, default=256)
@@ -234,12 +223,11 @@ def config():
 
 if __name__ == "__main__":
     args = config()
-    path = "results/" + args.data_name + '_version/train.log'
-    if not os.path.exists("results/" + args.data_name + '_version/'):
-        os.makedirs("results/" + args.data_name + '_version')
-    if os.path.exists(path):
-        os.remove(path)
-    logging.basicConfig(filename=path, level=logging.INFO)
+    path = "../embeddings/" + args.data_name + '/'
+    args.emb_path = path
+    if not os.path.exists(path):
+        os.makedirs(path)
+    logging.basicConfig(filename=path + "train.log", level=logging.INFO)
     args_dict = args.__dict__
     for k, v in args_dict.items():
         logging.info("{}: {}".format(k, v))
