@@ -1,108 +1,114 @@
+![Python Versions](https://img.shields.io/badge/python-3.8+-brightgreen.svg)
 
-#### Update
+GMFGRN: a matrix factorization and graph neural network approach for gene regulatory network inference
 
-2020-09:
-* Change the print format of each epoch
-* Add Cpp Extension in  `code/sources/`  for negative sampling. To use the extension, please install `pybind11` and `cppimport` under your environment
+# Abstract
 
----
+Accurate inference of gene regulatory networks (GRNs) is of critical importance for our understanding of the gene
+regulatory mechanisms and guidance of therapeutic development for various diseases. The recent advances of single-cell
+RNA sequencing (scRNA-seq) have enabled reliable profiling of gene expression at the single-cell level, thereby
+providing opportunities for accurate inference of GRNs on scRNA-seq data. Although a variety of methods have been
+developed for GRN inference, most methods suffer from the inability to eliminate transitive interactions (e.g. gene a
+and gene c are falsely associated through the intermediate gene b) or necessitate expensive computational resources. To
+address these issues and enable accurate GRN inference, we present a novel method, termed GMFGRN, for accurate graph
+neural network (GNN)-based GRN inference. First, GMFGRN employs GNN to perform matrix factorization, allowing the model
+to learn low-dimensional embeddings for each gene and cell. Next, by concatenating the embedding of TF-genes with their
+cell embedding they possess, it uses multilayer perceptron (MLP) to identify gene interactions. Extensive benchmarking
+experiments on eight static and four time series scRNA-seq datasets demonstrate the outstanding performance of GMFGRN in
+inferring GRNs compared to several state-of-the-art methods. We further show that GMFGRN requires less training time and
+memory consumption compared with other methods. We also showcase that GMFGRN is capable of accurately predicting
+potential target genes of transcription factors (TFs) in the hESC2 dataset. GMFGRN is envisioned to serve as a fast and
+useful tool for inferring GRNs on scRNA-seq data.
+![figure.png](figure.png)
 
-## LightGCN-pytorch
+# Requirement:
 
-This is the Pytorch implementation for our SIGIR 2020 paper:
-
->SIGIR 2020. Xiangnan He, Kuan Deng ,Xiang Wang, Yan Li, Yongdong Zhang, Meng Wang(2020). LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation, [Paper in arXiv](https://arxiv.org/abs/2002.02126).
-
-Author: Prof. Xiangnan He (staff.ustc.edu.cn/~hexn/)
-
-(Also see Tensorflow [implementation](https://github.com/kuandeng/LightGCN))
-
-## Introduction
-
-In this work, we aim to simplify the design of GCN to make it more concise and appropriate for recommendation. We propose a new model named LightGCN,including only the most essential component in GCN—neighborhood aggregation—for collaborative filtering
-
-
-
-## Enviroment Requirement
-
-`pip install -r requirements.txt`
-
-
-
-## Dataset
-
-We provide three processed datasets: Gowalla, Yelp2018 and Amazon-book and one small dataset LastFM.
-
-see more in `dataloader.py`
-
-## An example to run a 3-layer LightGCN
-
-run LightGCN on **Gowalla** dataset:
-
-* change base directory
-
-Change `ROOT_PATH` in `code/world.py`
-
-* command
-
-` cd code && python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="gowalla" --topks="[20]" --recdim=64`
-
-* log output
-
-```shell
-...
-======================
-EPOCH[5/1000]
-BPR[sample time][16.2=15.84+0.42]
-[saved][[BPR[aver loss1.128e-01]]
-[0;30;43m[TEST][0m
-{'precision': array([0.03315359]), 'recall': array([0.10711388]), 'ndcg': array([0.08940792])}
-[TOTAL TIME] 35.9975962638855
-...
-======================
-EPOCH[116/1000]
-BPR[sample time][16.9=16.60+0.45]
-[saved][[BPR[aver loss2.056e-02]]
-[TOTAL TIME] 30.99874997138977
-...
+```console
+pip install dgl=1.0.1
+pip install torch=1.12.1
 ```
 
-*NOTE*:
+# Datasets
 
-1. Even though we offer the code to split user-item matrix for matrix multiplication, we strongly suggest you don't enable it since it will extremely slow down the training speed.
-2. If you feel the test process is slow, try to increase the ` testbatch` and enable `multicore`(Windows system may encounter problems with `multicore` option enabled)
-3. Use `tensorboard` option, it's good.
-4. Since we fix the seed(`--seed=2020` ) of `numpy` and `torch` in the beginning, if you run the command as we do above, you should have the exact output log despite the running time (check your output of *epoch 5* and *epoch 116*).
+The data for evaluating GMFGRN and data related to the experiment in the manuscript is in https://zenodo.org/record/8418696.
+
+# How to run
+
+## Self-supervised train
+
+### Parameters
+
+- data_name: You can customize the name of the dataset. Embedding after supervised learning will be saved in the
+  Embedding/data_name/ folder.
+- data_path: The file of the gene expression profile. Can be h5 or csv file, the format please refer the example data.
+- class_rating: The maximum expression level of gene expression matrix. Non-values in the matrix will be mapped to 1 to
+  class_rating.
+- gcn_out_units: The embedding size of genes and cells.
+- gcn_agg_units: GCN aggregation unit size, whose value is equal to class_rating * gcn_out_units.
+- train_max_iter: Number of iterations of training.
+- train_lr: Learning rate.
+- is_time: Whether it is a time series datasets.
+- is_h5: If data_path specifies a h5 format file, then it should be true.
+
+```bash
+# static datasets
+python3 self_supervised.py --data_name=mHSC_E --data_path ../data_evaluation/single_cell_type/mHSC-E/ExpressionData.csv  --class_rating 15 --gcn_out_units 256 --gcn_agg_units 3840 --train_max_iter 20000 --train_lr 0.01
+
+# time series datasets
+python3 self_supervised.py --data_name=hESC --data_path ../data_evaluation/Time_data/scRNA_expression_data/hesc1_expression_data/  --class_rating 25 --gcn_out_units 256 --gcn_agg_units 6400 --train_max_iter 20000 --train_lr 0.01 --is_time
+
+```
+
+**For boneMarrow, dendritic, mESC(1), mHSC(E), mHSC(GM) of static datasets, and mESC1 and mESC2 datasets of time series
+datasets, class_rating is set to 15. Other datasets are set to 25.**
+
+## Supervised train
+
+### Parameters
+
+- data_name: To be consistent with the data_name parameters of self-supervised learning, it is convenient to find the
+  embedding of gene and cell learned by self-supervised learning.
+- rpkm_path: The file of the gene expression profile. Can be h5 or csv file, the format please refer the example data.
+- label_path: The file of the training gene pairs and their labels.
+- divide_path: File that indicate the position in label_path to divide pairs into different TFs.
+- gene_list_path: The file to map the name of gene in rpkm_path to the label_path.
+- TF_num: To generate representation for this number of TFs. Should be a integer that equal or samller than the number
+  of TFs in the label_path.
+- TF_random: If the TF_num samller than the number of TFs in the label_path, we need to indicate TF_random, if
+  TF_random=True, then the code will generate representation for randomly selected TF_num TFs.
+- is_time: Whether it is a time series datasets.
+- is_h5: If data_path specifies a h5 format file, then it should be true.
+
+```bash
+# static datasets
+python3 supervised.py --data_name=bonemarrow --rpkm_path ../data_evaluation/bonemarrow/bone_marrow_cell.h5  --label_path ../data_evaluation/bonemarrow/gold_standard_for_TFdivide --divide_path ../data_evaluation/bonemarrow/whole_gold_split_pos --TF_num 13 --gene_list_path ../data_evaluation/bonemarrow/sc_gene_list.txt --is_h5
+
+python3 supervised.py --data_name=dendritic --rpkm_path ../data_evaluation/dendritic/dendritic_cell.h5  --label_path ../data_evaluation/dendritic/gold_standard_dendritic_whole.txt --divide_path ../data_evaluation/dendritic/dendritic_divideTF_pos.txt --TF_num 16 --gene_list_path ../data_evaluation/dendritic/sc_gene_list.txt --is_h5
+
+python3 supervised.py --data_name=mESC_1 --rpkm_path ../data_evaluation/mesc/mesc_cell.h5  --label_path ../data_evaluation/mesc/gold_standard_mesc_whole.txt --divide_path ../data_evaluation/mesc/mesc_divideTF_pos.txt --TF_num 38 --gene_list_path ../data_evaluation/mesc/mesc_sc_gene_list.txt --is_h5
 
 
-## Extend:
-* If you want to run lightGCN on your own dataset, you should go to `dataloader.py`, and implement a dataloader inherited from `BasicDataset`.  Then register it in `register.py`.
-* If you want to run your own models on the datasets we offer, you should go to `model.py`, and implement a model inherited from `BasicModel`.  Then register it in `register.py`.
-* If you want to run your own sampling methods on the datasets and models we offer, you should go to `Procedure.py`, and implement a function. Then modify the corresponding code in `main.py`
+python3 supervised.py --data_name=mHSC_E --rpkm_path ../data_evaluation/single_cell_type/mHSC-E/ExpressionData.csv  --label_path ../data_evaluation/single_cell_type/training_pairsmHSC_E.txt --divide_path ../data_evaluation/single_cell_type/training_pairsmHSC_E.txtTF_divide_pos.txt --TF_num 18 --gene_list_path ../data_evaluation/single_cell_type/mHSC_E_geneName_map.txt --TF_random
 
+python3 supervised.py --data_name=mHSC_GM --rpkm_path ../data_evaluation/single_cell_type/mHSC-GM/ExpressionData.csv  --label_path ../data_evaluation/single_cell_type/training_pairsmHSC_GM.txt --divide_path ../data_evaluation/single_cell_type/training_pairsmHSC_GM.txtTF_divide_pos.txt --TF_num 18 --gene_list_path ../data_evaluation/single_cell_type/mHSC_GM_geneName_map.txt --TF_random
 
-## Results
-*all metrics is under top-20*
+python3 supervised.py --data_name=mHSC_L --rpkm_path ../data_evaluation/single_cell_type/mHSC-L/ExpressionData.csv  --label_path ../data_evaluation/single_cell_type/training_pairsmHSC_L.txt --divide_path ../data_evaluation/single_cell_type/training_pairsmHSC_L.txtTF_divide_pos.txt --TF_num 18 --gene_list_path ../data_evaluation/single_cell_type/mHSC_L_geneName_map.txt --TF_random
 
-***pytorch* version results** (stop at 1000 epochs):
+python3 supervised.py --data_name=hESC --rpkm_path ../data_evaluation/single_cell_type/hESC/ExpressionData.csv  --label_path ../data_evaluation/single_cell_type/training_pairshESC.txt --divide_path ../data_evaluation/single_cell_type/training_pairshESC.txtTF_divide_pos.txt --TF_num 18 --gene_list_path ../data_evaluation/single_cell_type/hESC_geneName_map.txt --TF_random
 
-(*for seed=2020*)
+python3 supervised.py --data_name=mESC_2 --rpkm_path ../data_evaluation/single_cell_type/mESC/ExpressionData.csv  --label_path ../data_evaluation/single_cell_type/training_pairsmESC.txt --divide_path ../data_evaluation/single_cell_type/training_pairsmESC.txtTF_divide_pos.txt --TF_num 18 --gene_list_path ../data_evaluation/single_cell_type/mESC_geneName_map.txt --TF_random
 
-* gowalla:
+# time series datasets
+python3 supervised.py --data_name=hESC1 --rpkm_path ../data_evaluation/Time_data/scRNA_expression_data/hesc1_expression_data/  --label_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc1_gene_pairs_400.txt --divide_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc1_gene_pairs_400_num.txt --TF_num 36 --gene_list_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc1_gene_list_ref.txt --TF_random --is_time
 
-|             | Recall | ndcg | precision |
-| ----------- | ---------------------------- | ----------------- | ---- |
-| **layer=1** | 0.1687               | 0.1417    | 0.05106 |
-| **layer=2** | 0.1786                     | 0.1524    | 0.05456 |
-| **layer=3** | 0.1824                | 0.1547 | 0.05589 |
-| **layer=4** | 0.1825                 | 0.1537       | 0.05576 |
+python3 supervised.py --data_name=hESC2 --rpkm_path ../data_evaluation/Time_data/scRNA_expression_data/hesc2_expression_data/  --label_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc2_gene_pairs_400.txt --divide_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc2_gene_pairs_400_num.txt --TF_num 36 --gene_list_path ../data_evaluation/Time_data/DB_pairs_TF_gene/hesc2_gene_list_ref.txt --TF_random --is_time
 
-* yelp2018
+python3 supervised.py --data_name=mESC1 --rpkm_path ../data_evaluation/Time_data/scRNA_expression_data/mesc1_expression_data/  --label_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc1_gene_pairs_400.txt --divide_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc1_gene_pairs_400_num.txt --TF_num 36 --gene_list_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc1_gene_list_ref.txt --TF_random --is_time
 
-|             | Recall | ndcg | precision |
-| ----------- | ---------------------------- | ----------------- | ---- |
-| **layer=1** | 0.05604     | 0.04557 | 0.02519 |
-| **layer=2** | 0.05988               | 0.04956 | 0.0271 |
-| **layer=3** | 0.06347          | 0.05238 | 0.0285 |
-| **layer=4** | 0.06515                | 0.05325 | 0.02917 |
+python3 supervised.py --data_name=mESC2 --rpkm_path ../data_evaluation/Time_data/scRNA_expression_data/mesc2_expression_data/  --label_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc2_gene_pairs_400.txt --divide_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc2_gene_pairs_400_num.txt --TF_num 38 --gene_list_path ../data_evaluation/Time_data/DB_pairs_TF_gene/mesc2_gene_list_ref.txt --TF_random --is_time
 
+```
+
+# Contact
+
+Please contact us if you have any questions: lishuocyy@njust.edu.cn
