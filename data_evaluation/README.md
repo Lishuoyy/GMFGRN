@@ -1,1 +1,1 @@
-You can download the detailed dataset from the link in README.md.
+The data for evaluating GMFGRN and data related to the experiment in the manuscript is in https://zenodo.org/record/8418696.
