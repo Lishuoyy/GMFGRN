@@ -1,6 +1,6 @@
 ![Python Versions](https://img.shields.io/badge/python-3.8+-brightgreen.svg)
 
-GMFGRN: a matrix factorization and graph neural network approach for gene regulatory network inference
+# GMFGRN: a matrix factorization and graph neural network approach for gene regulatory network inference
 
 # Abstract
 
