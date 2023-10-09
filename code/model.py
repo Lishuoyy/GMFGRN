@@ -3,7 +3,6 @@ import dgl.function as fn
 import dgl.nn.pytorch as dglnn
 import torch as th
 import torch.nn as nn
-from torch.nn import init
 from utils import to_etype_name
 
 
@@ -26,7 +25,7 @@ class GCMCGraphConv(nn.Module):
     def reset_parameters(self):
         """Reinitialize learnable parameters."""
         if self.weight is not None:
-            init.xavier_uniform_(self.weight)
+            nn.init.xavier_uniform_(self.weight)
 
     def forward(self, graph, feat, weight=None):
         """Compute graph convolution.
