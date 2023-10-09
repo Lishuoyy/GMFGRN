@@ -1,19 +1,11 @@
-# from copy import deepcopy, copy
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import pandas as pd
 import numpy as np
-# from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score, average_precision_score, precision_recall_curve, auc
 from sklearn.model_selection import train_test_split, KFold
-from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances, linear_kernel
 
 import random
 import time
-from torch.autograd import Variable
-import collections
 from model import LinearNet
 import os
 from data import GeneData
@@ -83,6 +75,7 @@ def config():
     )
 
     return args
+
 
 device = "cuda:1"
 

@@ -180,10 +180,6 @@ def config():
         default="../data_evaluation/single_cell_type/mHSC-E/ExpressionData.csv",
         type=str,
     )
-    # ../Beeline-master/BeelineData/500_hESC/ExpressionData.csv
-    # data_evaluation/single_cell_type/mHSC-E/ExpressionData.csv
-    # data_evaluation/bonemarrow/bone_marrow_cell.h5
-    # data_evaluation/Time_data/scRNA_expression_data/mesc2_expression_data/
     parser.add_argument("--is_time", default=False, action="store_true")
     parser.add_argument("--is_h5", default=False, action="store_true")
     parser.add_argument("--gcn_dropout", type=float, default=0.0)
