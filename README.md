@@ -19,7 +19,7 @@ inferring GRNs compared to several state-of-the-art methods. We further show tha
 memory consumption compared with other methods. We also showcase that GMFGRN is capable of accurately predicting
 potential target genes of transcription factors (TFs) in the hESC2 dataset. GMFGRN is envisioned to serve as a fast and
 useful tool for inferring GRNs on scRNA-seq data.
-![figure.png](figure.png)
+![https://github.com/Lishuoyy/GMFGRN/blob/main/figure.png](figure.png)
 
 # Requirement:
 
