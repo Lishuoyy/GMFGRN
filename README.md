@@ -4,23 +4,22 @@
 
 # Abstract
 
-Accurate inference of gene regulatory networks (GRNs) is of critical importance for our understanding of the gene
-regulatory mechanisms and guidance of therapeutic development for various diseases. The recent advances of single-cell
-RNA sequencing (scRNA-seq) have enabled reliable profiling of gene expression at the single-cell level, thereby
-providing opportunities for accurate inference of GRNs on scRNA-seq data. Although a variety of methods have been
-developed for GRN inference, most methods suffer from the inability to eliminate transitive interactions (e.g. gene a
-and gene c are falsely associated through the intermediate gene b) or necessitate expensive computational resources. To
-address these issues and enable accurate GRN inference, we present a novel method, termed GMFGRN, for accurate graph
-neural network (GNN)-based GRN inference. First, GMFGRN employs GNN to perform matrix factorization, allowing the model
-to learn low-dimensional embeddings for each gene and cell. Next, by concatenating the embedding of TF-genes with their
-cell embedding they possess, it uses multilayer perceptron (MLP) to identify gene interactions. Extensive benchmarking
-experiments on eight static and four time series scRNA-seq datasets demonstrate the outstanding performance of GMFGRN in
-inferring GRNs compared to several state-of-the-art methods. We further show that GMFGRN requires less training time and
-memory consumption compared with other methods. We also showcase that GMFGRN is capable of accurately predicting
-potential target genes of transcription factors (TFs) in the hESC2 dataset. GMFGRN is envisioned to serve as a fast and
-useful tool for inferring GRNs on scRNA-seq data.
+The recent advances of single-cell RNA sequencing (scRNA-seq) have enabled reliable profiling of gene expression at the
+single-cell level, providing opportunities for accurate inference of gene regulatory networks (GRNs) on scRNA-seq data.
+Most methods for inferring GRNs suffer from the inability to eliminate transitive interactions or necessitate expensive
+computational resources. To address these, we present a novel method, termed GMFGRN, for accurate graph neural network (
+GNN)-based GRN inference from scRNA-seq data. GMFGRN employs GNN for matrix factorization and learns representative
+embeddings for genes. For transcription factor–gene pairs, it utilizes the learned embeddings to determine whether they
+interact with each other. The extensive suite of benchmarking experiments encompassing eight static scRNA-seq datasets
+alongside several state-of-the-art methods demonstrated mean improvements of 1.9 and 2.5% over the runner-up in area
+under the receiver operating characteristic curve (AUROC) and area under the precision–recall curve (AUPRC). In
+addition, across four time-series datasets, maximum enhancements of 2.4 and 1.3% in AUROC and AUPRC were observed in
+comparison to the runner-up. Moreover, GMFGRN requires significantly less training time and memory consumption, with
+time and memory consumed <10% compared to the second-best method. These findings underscore the substantial potential of
+GMFGRN in the inference of GRNs.
 
 ![model.png](https://github.com/Lishuoyy/GMFGRN/blob/main/model.png)
+
 # Requirement:
 
 ```console
@@ -30,7 +29,8 @@ pip install torch=1.12.1
 
 # Datasets
 
-The data for evaluating GMFGRN and data related to the experiment in the manuscript is in https://zenodo.org/record/8418696.
+The data for evaluating GMFGRN and data related to the experiment in the manuscript is
+in https://zenodo.org/record/8418696.
 
 # How to run
 
