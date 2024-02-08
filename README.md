@@ -17,7 +17,7 @@ comparison to the runner-up. Moreover, GMFGRN requires significantly less traini
 time and memory consumed <10% compared to the second-best method. These findings underscore the substantial potential of
 GMFGRN in the inference of GRNs.
 
-![model.png](https://github.com/Lishuoyy/GMFGRN/blob/main/model.png)
+![figure.png](https://github.com/Lishuoyy/GMFGRN/blob/main/model.png)
 
 # Requirement:
 
