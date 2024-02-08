@@ -72,7 +72,9 @@ class GCMCGraphConv(nn.Module):
 
             if weight is not None:
                 feat = dot_or_identity(feat, weight, self.device)
-
+            # print(ci.shape, cj.shape)
+            # print(feat.shape)
+            # exit()
             feat = feat * self.dropout(cj)
             graph.srcdata["h"] = feat
             graph.update_all(
@@ -209,6 +211,7 @@ class GCMCLayer(nn.Module):
 
         ufeat = out_feats["gene"]
         ifeat = out_feats["cell"]
+
         ufeat = ufeat.view(ufeat.shape[0], -1)
         ifeat = ifeat.view(ifeat.shape[0], -1)
 
